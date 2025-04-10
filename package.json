@@ -1,0 +1,38 @@
+{
+  "name": "tournament-platform",
+  "version": "1.0.0",
+  "description": "Decentralized tournament platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx hardhat test",
+    "test:gas": "npx hardhat test test/GasUsage.js",
+    "compile": "npx hardhat compile",
+    "build": "npm run compile",
+    "deploy:local": "npx hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
+    "node": "npx hardhat node",
+    "verify:sepolia": "npx hardhat verify --network sepolia",
+    "start:backend": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "start:frontend": "cd frontend && npm start",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "start": "cd frontend && npm start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xthi/tournament-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/0xthi/tournament-platform/issues"
+  },
+  "homepage": "https://github.com/0xthi/tournament-platform#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^1.0.1",
+    "dotenv": "^16.0.3",
+    "hardhat": "^2.19.1"
+  }
+}

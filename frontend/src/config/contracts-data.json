@@ -1,0 +1,20 @@
+{
+  "VERSION": "1.0.0",
+  "CONTRACT_ADDRESSES": {
+    "1": {
+      "TournamentPlatform": null
+    },
+    "5": {
+      "TournamentPlatform": null
+    },
+    "1337": {
+      "TournamentPlatform": null
+    },
+    "31337": {
+      "TournamentPlatform": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    "11155111": {
+      "TournamentPlatform": "0xd58543E01d3A44727a0cc3c267e14F34fBC2FE9A"
+    }
+  }
+}
