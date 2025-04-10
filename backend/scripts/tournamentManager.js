@@ -246,7 +246,7 @@ const simulateGameplay = async (tournament) => {
 };
 
 /**
- * Finalize a tournament that has ended
+ * Finalize tournament and distribute rewards
  * @param {object} tournament - Tournament data from the contract
  */
 const finalizeTournament = async (tournament) => {
@@ -353,27 +353,56 @@ const cancelUnfilledTournament = async (tournament) => {
     const currentTime = Math.floor(Date.now() / 1000);
     const startTime = tournament.startTime.toNumber();
 
-    // Check if tournament start time has passed but it's not full
-    if (
-      currentTime >= startTime &&
-      tournament.currentPlayers.toNumber() < tournament.maxPlayers.toNumber()
-    ) {
-      console.log(
-        `Tournament #${tournamentId} start time has passed but it's not full. Cancelling...`
-      );
+    // Check if tournament start time has passed
+    if (currentTime >= startTime) {
+      // Check if it has less than 2 players or not full
+      const playerCount = tournament.currentPlayers.toNumber();
+      const maxPlayers = tournament.maxPlayers.toNumber();
+      const hasMinimumPlayers = playerCount >= 2;
 
-      // Cancel the tournament
-      const tx = await tournamentContract.cancelTournament(tournamentId);
-      await tx.wait();
+      if (!hasMinimumPlayers) {
+        console.log(
+          `Tournament #${tournamentId} doesn't have minimum required players (${playerCount}/2). Cancelling...`
+        );
+      } else if (playerCount < maxPlayers) {
+        console.log(
+          `Tournament #${tournamentId} is not full (${playerCount}/${maxPlayers}). You may want to start it manually or wait for more players to join.`
+        );
+        // If it has at least 2 players, we can let it be started manually
+        return false;
+      }
 
-      console.log(
-        `Tournament #${tournamentId} cancelled successfully. Transaction: ${tx.hash}`
-      );
-      return true;
+      if (!hasMinimumPlayers) {
+        // Cancel the tournament
+        try {
+          const tx = await tournamentContract.cancelTournament(tournamentId);
+          await tx.wait();
+
+          console.log(
+            `Tournament #${tournamentId} cancelled successfully. Transaction: ${tx.hash}`
+          );
+          return true;
+        } catch (error) {
+          console.error(
+            `Error calling cancelTournament for tournament #${tournamentId}:`,
+            error
+          );
+          console.log(
+            "This could happen if the tournament was already cancelled or started"
+          );
+          return false;
+        }
+      }
     } else {
-      console.log(`Tournament #${tournamentId} doesn't need to be cancelled.`);
+      console.log(
+        `Tournament #${tournamentId} hasn't reached its start time yet (${new Date(
+          startTime * 1000
+        ).toLocaleString()})`
+      );
       return false;
     }
+
+    return false;
   } catch (error) {
     console.error(
       `Error cancelling tournament #${tournament.id.toNumber()}:`,
@@ -390,7 +419,7 @@ const cancelUnfilledTournament = async (tournament) => {
 const updateTournamentPhase = async (tournament) => {
   try {
     const tournamentId = tournament.id.toNumber();
-    console.log(`Checking if tournament #${tournamentId} phase needs updating`);
+    console.log(`Checking if tournament #${tournamentId} needs to be canceled`);
 
     // Only update tournaments in registration phase
     if (tournament.status !== 0) {
@@ -404,41 +433,20 @@ const updateTournamentPhase = async (tournament) => {
     const currentTime = Math.floor(Date.now() / 1000);
     const startTime = tournament.startTime.toNumber();
 
-    // Check if tournament start time has passed but it's not full and not already in progress
-    if (currentTime >= startTime) {
+    // Check if tournament start time has passed but it doesn't have enough players
+    if (currentTime >= startTime && tournament.currentPlayers.toNumber() < 2) {
       console.log(
-        `Tournament #${tournamentId} start time has passed. Updating phase...`
+        `Tournament #${tournamentId} start time has passed but doesn't have enough players. Cancelling...`
       );
 
-      // We should start the tournament if its time has come
-      try {
-        // Check if it has enough players to start (at least 2)
-        if (tournament.currentPlayers.toNumber() >= 2) {
-          console.log(
-            `Tournament #${tournamentId} has enough players, starting tournament.`
-          );
-
-          // Start the tournament using the new startTournament function
-          const tx = await tournamentContract.startTournament(tournamentId);
-          await tx.wait();
-
-          console.log(
-            `Tournament #${tournamentId} started successfully. Transaction: ${tx.hash}`
-          );
-          return true;
-        } else {
-          console.log(
-            `Tournament #${tournamentId} doesn't have enough players, cancelling.`
-          );
-          // Cancel the tournament
-          return await cancelUnfilledTournament(tournament);
-        }
-      } catch (error) {
-        console.error(
-          `Error updating tournament #${tournamentId} phase:`,
-          error
-        );
-      }
+      // Cancel the tournament
+      return await cancelUnfilledTournament(tournament);
+    } else if (currentTime >= startTime) {
+      console.log(
+        `Tournament #${tournamentId} start time has passed. The contract will automatically transition it to InProgress when someone joins and it's full, or when the admin calls startTournament().`
+      );
+      // We don't need to do anything here - the contract handles starting tournaments
+      // automatically when they get enough players, or the admin can start them manually
     }
 
     return false;
@@ -508,17 +516,39 @@ const manageTournaments = async () => {
 
         let actionTaken = false;
 
-        // Case 1: Tournament in Registration phase but start time has passed - Cancel if not full or update phase
+        // Case 1: Tournament in Registration phase but start time has passed - Check if it needs to be cancelled
         if (status === 0 && currentTime >= startTime) {
-          actionTaken = await updateTournamentPhase(tournament);
+          // Only cancel tournaments that don't have enough players
+          if (tournament.currentPlayers.toNumber() < 2) {
+            actionTaken = await cancelUnfilledTournament(tournament);
+            if (actionTaken) {
+              console.log(
+                `Tournament #${tournamentId} was cancelled due to insufficient players`
+              );
+            }
+          } else {
+            console.log(
+              `Tournament #${tournamentId} has enough players. The contract will handle starting it automatically or it can be started manually.`
+            );
+          }
         }
         // Case 2: Tournament in Progress - Simulate gameplay if not done yet
         else if (status === 1 && currentTime < endTime) {
           actionTaken = await simulateGameplay(tournament);
+          if (actionTaken) {
+            console.log(
+              `Gameplay simulation completed for tournament #${tournamentId}`
+            );
+          }
         }
         // Case 3: Tournament in Progress but end time has passed - Finalize it
         else if (status === 1 && currentTime >= endTime) {
           actionTaken = await finalizeTournament(tournament);
+          if (actionTaken) {
+            console.log(
+              `Tournament #${tournamentId} was finalized and rewards distributed`
+            );
+          }
         } else {
           console.log(`No action needed for tournament #${tournamentId}`);
         }
